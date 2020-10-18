@@ -1,68 +1,55 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Deploy to Cloud Run with Travis CI
 
-## Available Scripts
+- install travis cli
+`sudo gem install travis`
 
-In the project directory, you can run:
+- login to travis account
+`travis login`
 
-### `npm start`
+- get your current GCP project id and save it as an env
+`PROJECT_ID="$(gcloud config get-value project -q)" # fetch current GCP project ID`
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- name your service account that will be used to deploy your cloud run services
+`SVCACCT_NAME=travisci-deployer`
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+- create a service account
+`gcloud iam service-accounts create "${SVCACCT_NAME?}"`
 
-### `npm test`
+- find the email of the service account
+`SVCACCT_EMAIL="$(gcloud iam service-accounts list \
+  --filter="name:${SVCACCT_NAME?}@"  \
+  --format=value\(email\))"`
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- create a JSON key file for the service account
 
-### `npm run build`
+`gcloud iam service-accounts keys create "google-key.json" \
+   --iam-account="${SVCACCT_EMAIL?}"`
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- assign needed permissions to your service account
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+```
+gcloud projects add-iam-policy-binding "${PROJECT_ID?}" \
+   --member="serviceAccount:${SVCACCT_EMAIL?}" \
+   --role="roles/storage.admin"
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+```
+gcloud projects add-iam-policy-binding "${PROJECT_ID?}" \
+   --member="serviceAccount:${SVCACCT_EMAIL?}" \
+   --role="roles/run.admin"
+```
 
-### `npm run eject`
+```
+gcloud projects add-iam-policy-binding "${PROJECT_ID?}" \
+   --member="serviceAccount:${SVCACCT_EMAIL?}" \
+   --role="roles/iam.serviceAccountUser"
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+- encrypt the service account key
+`travis encrypt-file google-key.json`
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- the encrypt command will generate a new encrypted file and show you a openssl command copy it and put in the .tavisci.yml file instead of the one that I have posted
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+- remove the service account key or ignore it in Dockerfile and .gitignore
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
-
-### Analyzing the Bundle Size
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
-
-### Making a Progressive Web App
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
-
-### Advanced Configuration
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
-
-### Deployment
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
-
-### `npm run build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+- you are ready. just commit your changes and watch how travis ci will deploy automatically to Cloud Run 
